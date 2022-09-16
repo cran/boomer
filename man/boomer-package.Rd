@@ -7,11 +7,9 @@
 \alias{boomer}
 \title{boomer: Debugging Tools to Inspect the Intermediate Steps of a Call}
 \description{
-\if{html}{\figure{logo.png}{options: align='right' alt='logo' width='120'}}
+\if{html}{\figure{logo.png}{options: style='float: right' alt='logo' width='120'}}
 
-Provides debugging tools that let you inspect the
-    intermediate results of a call. The output looks as if we explode a call
-    into its parts hence the package name.
+Provides debugging tools that let you inspect the intermediate results of a call. The output looks as if we explode a call into its parts hence the package name.
 }
 \details{
 \itemize{
@@ -45,7 +43,7 @@ printed (usually because it's redundant). Defaults to
 \code{c("~", "{", "(", "<-", "<<-", "=")}
 \item \code{boomer.safe_print}: Whether to replace emoticons by characters compatible
 with all systems. This is useful for reprexes (see {reprex} package) and
-for knitted report in case the ouput of those doesn't look good on your system.
+for knitted report in case the output of those doesn't look good on your system.
 \item \code{boomer.abbreviate}: Whether to show only the function's name rather than the
 call when it's entered.
 }

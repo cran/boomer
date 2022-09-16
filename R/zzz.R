@@ -1,9 +1,8 @@
 #' @importFrom stats setNames
 #' @importFrom utils getParseData head capture.output
 #' @importFrom methods allNames formalArgs
+#' @importFrom pryr address
 NULL
-
-promise_evaled <- getFromNamespace("promise_evaled", "pryr")
 
 .onLoad <- function(libname, pkgname) {
   #nocov start
@@ -19,7 +18,5 @@ promise_evaled <- getFromNamespace("promise_evaled", "pryr")
   )
   toset <- !(names(op.boom) %in% names(op))
   if(any(toset)) options(op.boom[toset])
-
-  invisible(NULL)
   #nocov end
 }
