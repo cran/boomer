@@ -263,8 +263,9 @@
            missing_function() %>%
            I() 
       Error: simpleError/error/condition
-    Error <simpleError>
-      could not find function "missing_function"
+    Condition
+      Error in `missing_function()`:
+      ! could not find function "missing_function"
     Code
       eagerly_failing_function <- (function(x) {
         stop("oops")
@@ -283,8 +284,9 @@
            eagerly_failing_function() %>%
            I() 
       Error: simpleError/error/condition
-    Error <simpleError>
-      oops
+    Condition
+      Error:
+      ! oops
     Code
       failing_function <- (function(x) {
         force(x)
@@ -308,8 +310,9 @@
            failing_function() %>%
            I() 
       Error: simpleError/error/condition
-    Error <simpleError>
-      oops
+    Condition
+      Error:
+      ! oops
 
 # functions created at runtime are boomed
 
@@ -359,7 +362,7 @@
       
       a
     Code
-      options(boomer.ignore = NULL)
+      withr::local_options(boomer.ignore = NULL)
       boom({
         x <- 1 + 2
         y <- quote(a)
@@ -367,52 +370,25 @@
         v = quote(a)
       })
     Output
-      <  {... 
-      . <  x <- 1 + 2 
-      . . <  >  1 + 2 
-      . . [1] 3
-      . . 
-      . >  x <- 1 + 2 
-      . [1] 3
-      . 
-      . <  y <- quote(a) 
-      . . <  >  quote(a) 
-      . . a
-      . . 
-      . . <  >  quote(a) 
-      . . a
-      . . 
-      . >  y <- quote(a) 
-      . a
-      . 
-      . <  u <- 1 + 2 
-      . . <  >  1 + 2 
-      . . [1] 3
-      . . 
-      . >  u <- 1 + 2 
-      . [1] 3
-      . 
-      . <  v <- quote(a) 
-      . . <  >  quote(a) 
-      . . a
-      . . 
-      . . <  >  quote(a) 
-      . . a
-      . . 
-      . >  v <- quote(a) 
-      . a
-      . 
-      >  {
-           x <- 1 + 2
-           y <- quote(a)
-           u <- 1 + 2
-           v <- quote(a)
-         } 
+      <  >  1 + 2 
+      [1] 3
+      
+      <  >  quote(a) 
+      a
+      
+      <  >  quote(a) 
+      a
+      
+      <  >  1 + 2 
+      [1] 3
+      
+      <  >  quote(a) 
+      a
+      
+      <  >  quote(a) 
       a
       
       a
-    Code
-      options(boomer.ignore = c("~", "{", "(", "<-", "<<-", "="))
 
 # multi-line calls are collapsed properly
 

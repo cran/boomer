@@ -40,9 +40,30 @@ wrap <- function(fun_val, clock, print_fun, rigged_nm = NULL, wrapped_nm = NA, m
     # return early if function is to be ignored
     wrapped_nm <- .(wrapped_nm)
     fun_val   <- .(fun_val)
-    ignore <- getOption("boomer.ignore")
     sc  <- sys.call()
-    if(wrapped_nm %in% ignore) {
+
+    wrapped_fun_caller_env <- parent.frame()
+    # fetch rigged function's execution env, it's the wrapped_fun_caller_env
+    # only at the top level
+    rigged_fun_exec_env <- wrapped_fun_caller_env
+    mask <- .(mask)
+    while (!identical(parent <- parent.env(rigged_fun_exec_env), mask)) {
+      rigged_fun_exec_env <- parent
+    }
+
+    ignore <- getOption("boomer.ignore")
+    if (is.character(ignore)) {
+      ignore <- mget(
+        ignore,
+        envir = parent.env(mask),
+        inherits = TRUE)
+    }
+
+    ignore_bool <-
+      !is.na(wrapped_nm) &&
+      any(vapply(ignore, identical, logical(1), get(wrapped_nm, parent.env(mask))))
+
+    if(ignore_bool) {
       res <- rlang::eval_bare(as.call(c(fun_val, as.list(sc[-1]))), parent.frame())
       return(res)
     }
@@ -55,22 +76,12 @@ wrap <- function(fun_val, clock, print_fun, rigged_nm = NULL, wrapped_nm = NA, m
     # fetch other args
     print_fun <- .(print_fun)
     rigged_nm <- .(rigged_nm)
-    mask      <- .(mask)
 
     # gather other options at run time
     if(is.null(print_fun)) print_fun <- getOption("boomer.print")
     visible_only <- getOption("boomer.visible_only")
     print_args <- getOption("boomer.print_args")
     safe_print <- getOption("boomer.safe_print")
-
-
-    wrapped_fun_caller_env <- parent.frame()
-    # fetch rigged function's execution env, it's the wrapped_fun_caller_env
-    # only at the top level
-    rigged_fun_exec_env <- wrapped_fun_caller_env
-    while (!identical(parent <- parent.env(rigged_fun_exec_env), mask)) {
-      rigged_fun_exec_env <- parent
-    }
 
     # set indentation
     globals$n_indent <- globals$n_indent + 1
@@ -85,7 +96,18 @@ wrap <- function(fun_val, clock, print_fun, rigged_nm = NULL, wrapped_nm = NA, m
     signal_rigged_function_and_args(rigged_nm, mask, ej, print_args, rigged_fun_exec_env)
 
     # build calls to be displayed on top and bottom of wrapped call
-    deparsed_calls <- build_deparsed_calls(sc, ej, globals$n_indent)
+   ignore_args <- getOption("boomer.ignore_args")
+    if (is.character(ignore_args)) {
+      ignore_args <- mget(
+        ignore_args,
+        envir = parent.env(mask),
+        inherits = TRUE)
+    }
+
+    ignore_args.bool <-
+      !is.null(mask) &&
+      any(vapply(ignore_args, identical, logical(1), fun_val))
+    deparsed_calls <- build_deparsed_calls(sc, ej, globals$n_indent, force_single_line = ignore_args.bool)
 
     # display wrapped call at the top if relevant
     if(!is.null(deparsed_calls$open)) {
@@ -93,7 +115,16 @@ wrap <- function(fun_val, clock, print_fun, rigged_nm = NULL, wrapped_nm = NA, m
     }
 
     # evaluate call with original wrapped function
-    res <- try(eval_wrapped_call(sc, fun_val, clock, wrapped_fun_caller_env), silent = TRUE)
+    if (ignore_args.bool) {
+      # remove the mask
+      parent.env(wrapped_fun_caller_env) <- parent.env(mask)
+      res <- try(eval_wrapped_call(sc, fun_val, clock, wrapped_fun_caller_env), silent = TRUE)
+      # put back the mask
+      parent.env(wrapped_fun_caller_env) <- mask
+    } else {
+      res <- try(eval_wrapped_call(sc, fun_val, clock, wrapped_fun_caller_env), silent = TRUE)
+    }
+
     success <- !inherits(res, "try-error")
 
     # if rigged fun args have been evaled, print them
@@ -180,7 +211,7 @@ signal_rigged_function_and_args <- function(rigged_nm, mask, ej, print_args, rig
   }
 }
 
-build_deparsed_calls <- function(sc, ej, n_indent) {
+build_deparsed_calls <- function(sc, ej, n_indent, force_single_line = FALSE) {
   # manipulate call to use original function
   sc <- sc
 
@@ -190,9 +221,9 @@ build_deparsed_calls <- function(sc, ej, n_indent) {
   call_chr <- styler::style_text(call_chr)
 
   # if all args are "atomic" (symbols or numbers) we can print open and close in one go
-  all_args_are_atomic <- all(lengths(as.list(sc[-1])) == 1)
+  all_args_are_atomic <- force_single_line || all(lengths(as.list(sc[-1])) == 1)
   # we need a workaround for magrittr here
-  no_dot_in_args <- !any(sapply(sc[-1], identical, quote(.)))
+  no_dot_in_args <- force_single_line || !any(sapply(sc[-1], identical, quote(.)))
   if(length(call_chr) == 1) {
     if(all_args_are_atomic && no_dot_in_args) {
       deparsed_calls$close <-
@@ -200,7 +231,7 @@ build_deparsed_calls <- function(sc, ej, n_indent) {
     } else {
       deparsed_calls$close <- paste0(ej$dots, ej$wrap_close, crayon::cyan(call_chr))
       if(getOption("boomer.abbreviate")) {
-        call_chr <- deparse1(sc[[1]])
+        call_chr <- deparse_line(sc[[1]])
       }
       deparsed_calls$open <- paste0(ej$dots, ej$wrap_open, crayon::cyan(call_chr))
 
@@ -219,7 +250,7 @@ build_deparsed_calls <- function(sc, ej, n_indent) {
       other_lines <-  paste0(ej$dots, "   ", crayon::cyan(call_chr[-1]))
       deparsed_calls$close <-  paste(c(line1, other_lines), collapse = "\n")
       if(getOption("boomer.abbreviate")) {
-        call_chr <- deparse1(sc[[1]])
+        call_chr <- deparse_line(sc[[1]])
       }
       if(length(call_chr) > 1) {
         call_chr <- paste0(call_chr[1], "...")
@@ -307,7 +338,7 @@ update_times_df_and_get_true_time <- function(
 
   # assemble everything in a row and bind it to the global times data.frame
   times_row <- data.frame(
-    call = deparse1(call),
+    call = deparse_line(call),
     total_time_start,
     evaluation_time_start,
     evaluation_time_end,
@@ -354,3 +385,6 @@ fetch_print_fun <- function(print_fun, res) {
   print_fun
 }
 
+deparse_line <- function(expr) {
+  paste(deparse(expr, width.cutoff = 500), collapse = " ")
+}
